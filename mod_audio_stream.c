@@ -301,7 +301,7 @@ SWITCH_STANDARD_APP(wait_for_detector_answer_function)
     while (!switch_channel_test_flag(channel, CF_ANSWERED) && switch_channel_ready(channel)) {
 		switch_ivr_sleep(session, 100, SWITCH_TRUE, NULL);
         if (switch_channel_get_variable(channel, "detect")!= NULL){
-
+	    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Call result is unknow %s\n",switch_channel_get_variable(channel, "detect") );
             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Waiting for answer det_result is %s\n", switch_channel_get_variable(channel, "detect"));
             if (strcmp(switch_channel_get_variable(channel, "detect"), "6") == 0){
                 count_time += 200;
