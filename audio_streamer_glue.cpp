@@ -1,4 +1,3 @@
-#include <regex>
 #include <string>
 #include <cstring>
 #include "mod_audio_stream.h"
@@ -104,7 +103,10 @@ public:
 
     void eventCallback(notifyEvent_t event, const char* message) {
         switch_core_session_t* psession = switch_core_session_locate(m_sessionId.c_str());
+
+        //switch_channel_t* channel = switch_core_session_get_channel(psession);
         if(psession) {
+            switch_channel_t *channel = switch_core_session_get_channel(psession);
             switch (event) {
                 case CONNECT_SUCCESS:
                     if (m_initial_meta && strlen(m_initial_meta) > 0) {
@@ -127,6 +129,10 @@ public:
                     break;
                 case MESSAGE:
                     if(!m_suppress_log)
+                        if (channel){
+                            switch_channel_set_variable(channel,"detect",message);
+                        }
+                        //switch_channel_set_variable(channel,"detect",message)
                         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(psession), SWITCH_LOG_INFO, "response: %s\n", message);
                     if(m_global_trace) {
                         if(filter_json_string(psession, message) == SWITCH_TRUE) {
@@ -225,7 +231,7 @@ namespace {
         switch_memory_pool_t *pool = switch_core_session_get_pool(session);
 
         memset(tech_pvt, 0, sizeof(private_t));
-
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "stream_data_init test\n");
         strncpy(tech_pvt->sessionId, switch_core_session_get_uuid(session), MAX_SESSION_ID);
         strncpy(tech_pvt->ws_uri, wsUri, MAX_WS_URI);
         tech_pvt->sampling = desiredSampling;
@@ -297,15 +303,51 @@ namespace {
 }
 
 extern "C" {
-    int validate_ws_uri(const char* url, char *wsUri) {
-        // Regular expression to match a WebSocket URL
-        std::regex regex("(wss?|ws)://[a-zA-Z0-9]+([\\-\\.]{1}[a-zA-Z0-9]+)*(:[0-9]+)?(/.*)?");
+    int validate_ws_uri(const char* url, char* wsUri) {
+        const char* scheme = nullptr;
+        const char* hostStart = nullptr;
+        const char* hostEnd = nullptr;
+        const char* portStart = nullptr;
 
-        if(std::regex_match(url, regex)) {
-            std::strncpy(wsUri, url, MAX_WS_URI);
-            return 1;
+        // Check scheme
+        if (strncmp(url, "ws://", 5) == 0) {
+            scheme = "ws";
+            hostStart = url + 5;
+        } else if (strncmp(url, "wss://", 6) == 0) {
+            scheme = "wss";
+            hostStart = url + 6;
+        } else {
+            return 0;
         }
-        return 0;
+
+        // Find host end or port start
+        hostEnd = hostStart;
+        while (*hostEnd && *hostEnd != ':' && *hostEnd != '/') {
+            if (!std::isalnum(*hostEnd) && *hostEnd != '-' && *hostEnd != '.') {
+                return 0;
+            }
+            ++hostEnd;
+        }
+
+        // Check if host is empty
+        if (hostStart == hostEnd) {
+            return 0;
+        }
+
+        // Check for port
+        if (*hostEnd == ':') {
+            portStart = hostEnd + 1;
+            while (*portStart && *portStart != '/') {
+                if (!std::isdigit(*portStart)) {
+                    return 0;
+                }
+                ++portStart;
+            }
+        }
+
+        // Copy valid URI to wsUri
+        std::strncpy(wsUri, url, MAX_WS_URI);
+        return 1;
     }
 
     switch_status_t is_valid_utf8(const char *str) {

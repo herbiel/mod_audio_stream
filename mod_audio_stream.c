@@ -12,10 +12,29 @@ SWITCH_MODULE_DEFINITION(mod_audio_stream, mod_audio_stream_load, mod_audio_stre
 
 static void responseHandler(switch_core_session_t* session, const char* eventName, const char* json) {
     switch_event_t *event;
+    
     switch_channel_t *channel = switch_core_session_get_channel(session);
     switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, eventName);
     switch_channel_event_set_data(channel, event);
-    if (json) switch_event_add_body(event, "%s", json);
+    if (json) {
+        switch_event_add_body(event, "%s", json);
+        const char *input_string = json;
+        const char *detect_result_position = strstr(input_string, "detect result");
+        if (detect_result_position != NULL) {
+            const char *colon_position = strchr(input_string, ':');
+            if (colon_position != NULL) {
+        // Extract the substring after the colon, skipping any leading spaces
+                const char *result = colon_position + 1;
+                while (*result == ' ' || *result == '\t') {
+            // Skip leading spaces or tabs
+                    result++;}
+                //switch_channel_set_variable(channel,"detect",result);
+                //switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "1111detect is %s\n",result);
+        }
+        }
+
+    }
+
     switch_event_fire(&event);
 }
 
@@ -237,9 +256,89 @@ done:
     return SWITCH_STATUS_SUCCESS;
 }
 
+SWITCH_STANDARD_APP(audio_stream_function)
+{
+    switch_status_t status = SWITCH_STATUS_FALSE;
+    char wsUri[MAX_WS_URI] = "ws://localhost:8000";
+    int sampling = 8000;
+    switch_media_bug_flag_t flags = SMBF_READ_STREAM;
+    char *metadata = switch_core_session_get_uuid(session);
+    status = start_capture(session, flags, wsUri, sampling, metadata);
+    if (status == SWITCH_STATUS_SUCCESS) {
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR,
+        "websocket success info: %s\n", metadata);
+    } else {
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR,
+        "websocket fail info: %s\n", metadata);
+    }
+}
+SWITCH_STANDARD_APP(wait_for_detector_answer_function)
+{
+    int sleep_time;
+    int count_time;
+    char *sleep_data= NULL;
+    count_time = 0;
+    switch_channel_t *channel = switch_core_session_get_channel(session);
+
+    sleep_data = switch_core_session_strdup(session, data);
+    // Check if data is empty or NULL
+    if (sleep_data == NULL || strcmp(sleep_data, "") == 0) {
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "No sleep_time provided\n");
+        switch_channel_hangup(channel, SWITCH_CAUSE_NORMAL_CLEARING);
+    }
+
+    sleep_time = atoi(sleep_data);
+    // Check if sleep_time is valid
+    if (sleep_time <= 0) {
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Invalid sleep_time\n");
+        switch_channel_hangup(channel, SWITCH_CAUSE_NORMAL_CLEARING);
+    }
+    else{
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Waiting for call answer time is %d\n", sleep_time);
+
+
+	}
+    while (!switch_channel_test_flag(channel, CF_ANSWERED) && switch_channel_ready(channel)) {
+		switch_ivr_sleep(session, 100, SWITCH_TRUE, NULL);
+        if (switch_channel_get_variable(channel, "detect")!= NULL){
+
+            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Waiting for answer det_result is %s\n", switch_channel_get_variable(channel, "detect"));
+            if (strcmp(switch_channel_get_variable(channel, "detect"), "6") == 0){
+                count_time += 200;
+                switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Waiting for call answer time is %d\n", count_time);
+                if (count_time >= sleep_time) {
+                    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Total waiting time exceeded sleep time\n");
+                    switch_channel_hangup(channel, SWITCH_CAUSE_NORMAL_CLEARING);
+                    break;
+                }
+                switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Call result is ringring\n" );
+                switch_ivr_sleep(session, 100, SWITCH_TRUE, NULL);
+		    }
+		    else if (strcmp(switch_channel_get_variable(channel, "detect"), "9") == 0)
+		    {
+                switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Call result is unknow\n" );
+                switch_ivr_sleep(session, 100, SWITCH_TRUE, NULL);
+		    }
+	        else{
+			    switch_channel_hangup(channel, SWITCH_CAUSE_NORMAL_CLEARING);
+			    break;
+		    }
+
+
+        }
+	}
+
+    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Waiting for answer time is %d\n", sleep_time);
+
+}
+
+
+
+
 SWITCH_MODULE_LOAD_FUNCTION(mod_audio_stream_load)
 {
     switch_api_interface_t *api_interface;
+    switch_application_interface_t *app_interface = NULL;
 
     switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "mod_audio_stream API loading..\n");
 
@@ -258,6 +357,11 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_audio_stream_load)
     switch_console_set_complete("add uuid_audio_stream start wss-url metadata");
     switch_console_set_complete("add uuid_audio_stream start wss-url");
     switch_console_set_complete("add uuid_audio_stream stop");
+    SWITCH_ADD_APP(app_interface, "audio_stream", "Send media to robot recording server", "Send media to robot recording server",
+	audio_stream_function, "[path]", SAF_NONE);
+    SWITCH_ADD_APP(app_interface, "wait_for_detector_answer", "Wait for call to be answered", "Wait for call to be answered.", wait_for_detector_answer_function, "", SAF_SUPPORT_NOMEDIA);
+
+
 
     switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "mod_audio_stream API successfully loaded\n");
 
