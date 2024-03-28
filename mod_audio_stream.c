@@ -303,7 +303,7 @@ SWITCH_STANDARD_APP(wait_for_detector_answer_function)
         if (switch_channel_get_variable(channel, "detect")!= NULL){
 	    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Call result is unknow %s\n",switch_channel_get_variable(channel, "detect") );
             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Waiting for answer det_result is %s\n", switch_channel_get_variable(channel, "detect"));
-            if (strcmp(switch_channel_get_variable(channel, "detect"), "6") == 0){
+            if (strcmp(switch_channel_get_variable(channel, "detect"), "5") == 0){
                 count_time += 200;
                 switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Waiting for call answer time is %d\n", count_time);
                 if (count_time >= sleep_time) {
