@@ -298,13 +298,10 @@ SWITCH_STANDARD_APP(wait_for_detector_answer_function)
 
 
 	}
-    while (!switch_channel_test_flag(channel, CF_ANSWERED) && switch_channel_ready(channel)) {
-		switch_ivr_sleep(session, 100, SWITCH_TRUE, NULL);
-        if (switch_channel_get_variable(channel, "detect")!= NULL){
-
-            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Waiting for answer det_result is %s\n", switch_channel_get_variable(channel, "detect"));
+    while (!switch_channel_test_flag(channel, CF_ANSWERED) && switch_channel_ready(channel) && switch_channel_get_variable(channel, "detect") == NULL){
             if (strcmp(switch_channel_get_variable(channel, "detect"), "6") == 0){
                 count_time += 200;
+                switch_ivr_sleep(session, 100, SWITCH_TRUE, NULL);
                 switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Waiting for call answer time is %d\n", count_time);
                 if (count_time >= sleep_time) {
                     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "Total waiting time exceeded sleep time\n");
